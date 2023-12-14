@@ -5,8 +5,9 @@ class DrawCanvas extends UIBaseElement {
 
     ColoredPixels: string[][] = [[]];
     sizeX = 32;
-    sizeY = 32;
-    pixelSize = 1;
+    sizeY = 64;
+    pixelSizeX = 1;
+    pixelSizeY = 1;
     drawing = false;
 
     lastClickUpadate: number[] | null = null;
@@ -23,8 +24,9 @@ class DrawCanvas extends UIBaseElement {
         // this.isDraggable = true;
 
         this.ColoredPixels = []
-        this.pixelSize = this.width / this.sizeX;
-        console.log(this.pixelSize);
+        this.pixelSizeX = this.width / this.sizeX;
+        this.pixelSizeY = this.height / this.sizeY;
+        console.log(this.pixelSizeX);
         for (let i = 0; i < this.sizeX; i++) {
             const row: string[] = [];
             for (let j = 0; j < this.sizeY; j++) {
@@ -45,11 +47,8 @@ class DrawCanvas extends UIBaseElement {
     onClick(event: Pointer): boolean {
         this.drawing = true;
         console.log(event)
-        let clickedLocalX = Math.floor((event.x - this.pos.x) / this.pixelSize);
-        let clickedLocalY = Math.floor((event.y - this.pos.y) / this.pixelSize);
 
         let clickedPos = this.worldToArray(event.x, event.y)
-        console.log(clickedLocalX, ":", clickedLocalY)
 
         this.ColoredPixels[clickedPos[0]][clickedPos[1]] = '#000000'
         this.lastClickUpadate = clickedPos;
@@ -71,8 +70,8 @@ class DrawCanvas extends UIBaseElement {
     // }
 
     worldToArray(x: number, y: number) {
-        let clickedLocalX = Math.floor((x - this.pos.x) / this.pixelSize);
-        let clickedLocalY = Math.floor((y - this.pos.y) / this.pixelSize);
+        let clickedLocalX = Math.floor((x - this.pos.x) / this.pixelSizeX);
+        let clickedLocalY = Math.floor((y - this.pos.y) / this.pixelSizeY);
 
         return [clickedLocalX, clickedLocalY]
     }
@@ -88,12 +87,15 @@ class DrawCanvas extends UIBaseElement {
 
             if (this.lastClickUpadate) {
                 console.log(clickedPos,this.lastClickUpadate);
-                let points = this.bresenhamAlgorithm(this.lastClickUpadate[0],this.lastClickUpadate[1], clickedPos[0], clickedPos[1])
-                console.log(points)
 
-                points.forEach(element => {
-                    this.ColoredPixels[element.x][element.y] = '#000000'
-                });
+                if(this.lastClickUpadate!=clickedPos){
+                    let points = this.bresenhamAlgorithm(this.lastClickUpadate[0],this.lastClickUpadate[1], clickedPos[0], clickedPos[1])
+                    console.log(points)
+    
+                    points.forEach(element => {
+                        this.ColoredPixels[element.x][element.y] = '#000000'
+                    });
+                }
 
                 this.lastClickUpadate = clickedPos;
 
@@ -131,7 +133,7 @@ class DrawCanvas extends UIBaseElement {
             for (let y = 0; y < xRow.length; y++) {
                 const color = xRow[y];
                 renderer.setColor(color);
-                renderer.fillRect(this.pos.x + (x * this.pixelSize), this.pos.y + (y * this.pixelSize), this.pixelSize, this.pixelSize);
+                renderer.fillRect(this.pos.x + (x * this.pixelSizeX), this.pos.y + (y * this.pixelSizeY), this.pixelSizeX, this.pixelSizeY);
             }
 
         }

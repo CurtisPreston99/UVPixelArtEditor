@@ -9,8 +9,8 @@ class PlayScreen extends Stage {
         // add a gray background to the default Stage
         game.world.addChild(new ColorLayer("background", "#202020"));
 
-        game.world.addChild(new DrawCanvas(game.viewport.width / 2, 0,500,500,'a'))
-        game.world.addChild(new DrawCanvas(0, 0,game.viewport.height/2,game.viewport.height/2,'a'))
+        game.world.addChild(new DrawCanvas(game.viewport.width / 2, 0,640,1280,'a'))
+        // game.world.addChild(new DrawCanvas(0, 0,game.viewport.height/2,game.viewport.height/2,'a'))
     }
 };
 
