@@ -1,4 +1,4 @@
-import { CanvasRenderer,Application, Entity, Pointer, Renderable, UIBaseElement, WebGLRenderer, input, World } from "melonjs";
+import { CanvasRenderer, Application, Entity, Pointer, Renderable, UIBaseElement, WebGLRenderer, input, World } from "melonjs";
 import { string } from "melonjs/dist/types/utils/utils";
 
 class DrawCanvas extends UIBaseElement {
@@ -9,7 +9,7 @@ class DrawCanvas extends UIBaseElement {
     pixelSize = 1;
     drawing = false;
 
-    lastUpadate: number[]|null = null;
+    lastClickUpadate: number[] | null = null;
 
     /**
      * constructor
@@ -35,32 +35,32 @@ class DrawCanvas extends UIBaseElement {
 
     }
 
-    onRelease(){
+    onRelease() {
         console.log('onRelease')
         this.drawing = false;
-        this.lastUpadate = null;
+        this.lastClickUpadate = null;
         return true
     }
 
     onClick(event: Pointer): boolean {
         this.drawing = true;
         console.log(event)
-        let clickedLocalX = Math.floor((event.x - this.pos.x)/this.pixelSize);
-        let clickedLocalY = Math.floor((event.y - this.pos.y)/this.pixelSize);
+        let clickedLocalX = Math.floor((event.x - this.pos.x) / this.pixelSize);
+        let clickedLocalY = Math.floor((event.y - this.pos.y) / this.pixelSize);
 
-        let clickedPos = this.worldToArray(event.x,event.y)
+        let clickedPos = this.worldToArray(event.x, event.y)
         console.log(clickedLocalX, ":", clickedLocalY)
 
         this.ColoredPixels[clickedPos[0]][clickedPos[1]] = '#000000'
-        this.lastUpadate = clickedPos;
+        this.lastClickUpadate = clickedPos;
 
         // input.registerPointerEvent('pointermove', this, (e: any) => this.pointerMove(e));
         // input.bindPointer
         return true;
     }
 
-    onMove(event: Pointer){
-        console.log("onMove",event)
+    onMove(event: Pointer) {
+        console.log("onMove", event)
 
         return false
     }
@@ -70,26 +70,37 @@ class DrawCanvas extends UIBaseElement {
 
     // }
 
-    worldToArray(x:number,y:number){
-        let clickedLocalX = Math.floor((x - this.pos.x)/this.pixelSize);
-        let clickedLocalY = Math.floor((y - this.pos.y)/this.pixelSize);
+    worldToArray(x: number, y: number) {
+        let clickedLocalX = Math.floor((x - this.pos.x) / this.pixelSize);
+        let clickedLocalY = Math.floor((y - this.pos.y) / this.pixelSize);
 
-        return [clickedLocalX,clickedLocalY]
+        return [clickedLocalX, clickedLocalY]
     }
 
     /**
      * update the entity
      */
     update(dt: number) {
-        console.log(this.lastUpadate);
-        if(this.drawing){
-            let mousePos = input.globalToLocal(input.pointer.centerX,input.pointer.centerY);
-            let clickedPos = this.worldToArray(input.pointer.centerX,input.pointer.centerY);
-            
+        if (this.drawing) {
+            let clickedPos = this.worldToArray(input.pointer.centerX, input.pointer.centerY);
+
             this.ColoredPixels[clickedPos[0]][clickedPos[1]] = '#000000'
-            
+
+            if (this.lastClickUpadate) {
+                console.log(clickedPos,this.lastClickUpadate);
+                let points = this.bresenhamAlgorithm(this.lastClickUpadate[0],this.lastClickUpadate[1], clickedPos[0], clickedPos[1])
+                console.log(points)
+
+                points.forEach(element => {
+                    this.ColoredPixels[element.x][element.y] = '#000000'
+                });
+
+                this.lastClickUpadate = clickedPos;
+
+            }
+
+
             //todo draw a line inbetweent he two points
-            this.lastUpadate = clickedPos;
             // both of these need to be in this order for the drawn updates to show up
             this.parentApp.repaint();
             this.parentApp.draw();
@@ -120,12 +131,44 @@ class DrawCanvas extends UIBaseElement {
             for (let y = 0; y < xRow.length; y++) {
                 const color = xRow[y];
                 renderer.setColor(color);
-                renderer.fillRect(this.pos.x + (x *this.pixelSize), this.pos.y + (y*this.pixelSize), this.pixelSize, this.pixelSize);
+                renderer.fillRect(this.pos.x + (x * this.pixelSize), this.pos.y + (y * this.pixelSize), this.pixelSize, this.pixelSize);
             }
 
         }
 
         super.draw(renderer);
+    }
+
+
+    bresenhamAlgorithm(startX: number, startY: number, endX: number, endY: number) {
+
+        const deltaCol = Math.abs(endX - startX) // zero or positive number
+        const deltaRow = Math.abs(endY - startY) // zero or positive number
+
+        let pointX = startX
+        let pointY = startY
+
+        const horizontalStep = (startX < endX) ? 1 : -1
+
+        const verticalStep = (startY < endY) ? 1 : -1
+
+        const points = []
+
+        let difference = deltaCol - deltaRow
+
+        while (true) {
+
+            const doubleDifference = 2 * difference // necessary to store this value
+
+            if (doubleDifference > -deltaRow) { difference -= deltaRow; pointX += horizontalStep }
+            if (doubleDifference < deltaCol) { difference += deltaCol; pointY += verticalStep }
+
+            if ((pointX == endX) && (pointY == endY)) { break } // doesnt include the end point
+
+            points.push({ "x": pointX, "y": pointY })
+        }
+
+        return points
     }
 };
 
