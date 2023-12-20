@@ -1,40 +1,81 @@
 import { CanvasRenderer, Application, Entity, Pointer, Renderable, UIBaseElement, WebGLRenderer, input, World } from "melonjs";
+import * as me from "melonjs";
 import { string } from "melonjs/dist/types/utils/utils";
+import { selection } from "../data/drawing-selection";
+import { pointer } from "melonjs/dist/types/input/input";
+import { CanvasData } from "../data/canvas_data";
 
 class DrawCanvas extends UIBaseElement {
 
-    ColoredPixels: string[][] = [[]];
-    sizeX = 32;
-    sizeY = 64;
     pixelSizeX = 1;
     pixelSizeY = 1;
     drawing = false;
+    scrollScaler = 0.1;
+    ScreenCenterX = 0;
+    ScreenCenterY = 0;
+
+    canvasData:CanvasData;
+
+    isDraging = false;
+    dragingLastCords: number[] | null = null;
+
 
     lastClickUpadate: number[] | null = null;
 
     /**
      * constructor
      */
-    constructor(x: number, y: number, width: number, height: number, label: any) {
+    constructor(x: number, y: number, width: number, height: number, label: any, canvasData: CanvasData) {
         // call the parent constructor
         super(x, y, width, height);
+
+        this.canvasData = canvasData;
         // this.anchorPoint.set(0, 0);
         this.isClickable = true;
-        // this.isHoldable = true;
-        // this.isDraggable = true;
 
-        this.ColoredPixels = []
-        this.pixelSizeX = this.width / this.sizeX;
-        this.pixelSizeY = this.height / this.sizeY;
+        this.pixelSizeX = this.width / this.canvasData.getXSize();
+        this.pixelSizeY = this.height / this.canvasData.getYSize();
         console.log(this.pixelSizeX);
-        for (let i = 0; i < this.sizeX; i++) {
-            const row: string[] = [];
-            for (let j = 0; j < this.sizeY; j++) {
-                row.push('#ffffff');
+
+        this.ScreenCenterX = x+width/2;
+        this.ScreenCenterY = y+height/2;
+
+        input.registerPointerEvent('wheel', this, (e: { deltaY: number; }) => this.zoomPixels(e.deltaY));
+        me.input.registerPointerEvent('pointerdown', this, (event: {
+            x: number;
+            y: number; button: number
+        }) => {
+            if (event.button === 2) { // Check if right mouse button is clicked
+                this.isDraging = true;
+                this.dragingLastCords = [event.x, event.y];
             }
-            this.ColoredPixels.push(row);
+        });
+
+        me.input.registerPointerEvent('pointerup', this, (event: { button: number }) => {
+            if (event.button === 2) { // Check if right mouse button is clicked
+                this.isDraging = false;
+                this.dragingLastCords = null;
+            }
+        });
+    }
+
+    zoomPixels(delta: number) {
+        console.log(delta)
+        let amountToZoom = 1
+        if (delta > 0) {
+            amountToZoom = 1 + this.scrollScaler;
+        }
+        if (delta < 0) {
+            amountToZoom = 1 - this.scrollScaler;
         }
 
+        this.pixelSizeX = this.pixelSizeX * amountToZoom;
+        this.pixelSizeY = this.pixelSizeY * amountToZoom;
+
+        this.width = this.pixelSizeX * this.canvasData.getXSize();
+        this.height = this.pixelSizeY * this.canvasData.getYSize();
+
+        this.forceRedraw()
     }
 
     onRelease() {
@@ -50,11 +91,10 @@ class DrawCanvas extends UIBaseElement {
 
         let clickedPos = this.worldToArray(event.x, event.y)
 
-        this.ColoredPixels[clickedPos[0]][clickedPos[1]] = '#000000'
+        this.setColor(clickedPos[0], clickedPos[1])
+
         this.lastClickUpadate = clickedPos;
 
-        // input.registerPointerEvent('pointermove', this, (e: any) => this.pointerMove(e));
-        // input.bindPointer
         return true;
     }
 
@@ -80,67 +120,79 @@ class DrawCanvas extends UIBaseElement {
      * update the entity
      */
     update(dt: number) {
+
+        // selection.selectedColor = '#' + (Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0');
+
+        //left click drawing
         if (this.drawing) {
             let clickedPos = this.worldToArray(input.pointer.centerX, input.pointer.centerY);
 
-            this.ColoredPixels[clickedPos[0]][clickedPos[1]] = '#000000'
+            this.setColor(clickedPos[0], clickedPos[1])
 
             if (this.lastClickUpadate) {
-                console.log(clickedPos,this.lastClickUpadate);
+                console.log(clickedPos, this.lastClickUpadate);
 
-                if(this.lastClickUpadate!=clickedPos){
-                    let points = this.bresenhamAlgorithm(this.lastClickUpadate[0],this.lastClickUpadate[1], clickedPos[0], clickedPos[1])
+                if (this.lastClickUpadate != clickedPos) {
+                    let points = this.bresenhamAlgorithm(this.lastClickUpadate[0], this.lastClickUpadate[1], clickedPos[0], clickedPos[1])
                     console.log(points)
-    
+
                     points.forEach(element => {
-                        this.ColoredPixels[element.x][element.y] = '#000000'
+                        this.setColor(element.x, element.y);
                     });
+                    this.forceRedraw()
                 }
 
                 this.lastClickUpadate = clickedPos;
-
             }
-
-
-            //todo draw a line inbetweent he two points
-            // both of these need to be in this order for the drawn updates to show up
-            this.parentApp.repaint();
-            this.parentApp.draw();
         }
-        // change body force based on inputs
-        //....
-        // call the parent method
+
+        //right click drag
+        if (this.isDraging) {
+            if (this.dragingLastCords) {
+                console.log(this.dragingLastCords)
+                let currentPos = [input.pointer.centerX, input.pointer.centerY];
+                let Dx = this.dragingLastCords[0] - currentPos[0];
+                let Dy = this.dragingLastCords[1] - currentPos[1];
+
+                if (Math.abs(Dx) > 1 && Math.abs(Dy) > 1) {
+                    this.pos.x -= Dx;
+                    this.pos.y -= Dy;
+                    this.dragingLastCords = currentPos;
+                    this.forceRedraw()
+                }
+            }
+        }
+
         return super.update(dt);
     }
 
-    /**
-      * colision handler
-      * (called when colliding with other objects)
-      */
-    onCollision(response: any, other: any) {
-        // Make all other objects solid
-        return true;
+    setColor(x: number, y: number) {
+        console.log(x,y)
+        this.canvasData.setColor(x,y);
     }
 
     draw(renderer: CanvasRenderer | WebGLRenderer) {
-        renderer.setColor('#ffffff')
-
-        renderer.fillRect(this.pos.x, this.pos.y, this.width, this.height)
-
-        for (let x = 0; x < this.ColoredPixels.length; x++) {
-            const xRow = this.ColoredPixels[x];
-
-            for (let y = 0; y < xRow.length; y++) {
-                const color = xRow[y];
-                renderer.setColor(color);
-                renderer.fillRect(this.pos.x + (x * this.pixelSizeX), this.pos.y + (y * this.pixelSizeY), this.pixelSizeX, this.pixelSizeY);
-            }
-
-        }
-
         super.draw(renderer);
+
+        renderer.setColor('#ffffff');
+        renderer.strokeRect(0, 0 , this.width, this.height);
+
+        for (let x = 0; x < this.canvasData.getXSize(); x++) {
+
+            for (let y = 0; y < this.canvasData.getYSize(); y++) {
+                const color = this.canvasData.getColor(x,y);
+                renderer.setGlobalAlpha(1); // reset the alpha for some reason setting color dosent clear
+                renderer.setColor(color);
+                renderer.fillRect(0 + (x * this.pixelSizeX), 0 + (y * this.pixelSizeY), this.pixelSizeX, this.pixelSizeY);
+            }
+        }
     }
 
+    forceRedraw() {
+        // both of these need to be in this order for the drawn updates to show up
+        this.parentApp.repaint();
+        this.parentApp.draw();
+    }
 
     bresenhamAlgorithm(startX: number, startY: number, endX: number, endY: number) {
 
